@@ -26,7 +26,6 @@ export function ComebackChallenge({ problem, onResolve, onHide }: Props) {
     <div className="bg-surface border border-accent/40 rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm">🎯</span>
           <span className="text-xs text-accent uppercase tracking-wider font-medium">Comeback Challenge</span>
           <span className="text-xs text-accent/80 font-mono">+{bonus} pts</span>
         </div>
