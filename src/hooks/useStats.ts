@@ -38,9 +38,10 @@ export function useStats(problems: Problem[]) {
       }
     }
 
-    // Next upcoming review date (for empty queue message)
+    // Next upcoming review date (for empty queue message). Graduated problems
+    // are out of the active schedule, so they don't count as upcoming.
     const upcoming = problems
-      .filter(p => p.next_review > today())
+      .filter(p => !p.graduated && p.next_review > today())
       .sort((a, b) => a.next_review.localeCompare(b.next_review))
     const nextReviewDate = upcoming.length > 0 ? upcoming[0].next_review : null
 

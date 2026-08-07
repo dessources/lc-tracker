@@ -18,6 +18,9 @@ interface ProblemRow {
   next_review: string
   interval_days: number
   ease_factor: number
+  // Optional so a fetch tolerates the column being absent until the migration
+  // lands — a missing value simply reads as not-graduated.
+  graduated?: boolean
   reviews: ReviewRow[]
 }
 
@@ -56,6 +59,7 @@ function rowToProblem(row: ProblemRow): Problem {
     interval: row.interval_days,
     ease_factor: Number(row.ease_factor),
     comfort_history: reviews.map(r => r.comfort),
+    graduated: row.graduated ?? false,
   }
 }
 
@@ -75,6 +79,7 @@ function problemToRow(p: Problem, userId: string) {
     next_review: p.next_review,
     interval_days: p.interval,
     ease_factor: p.ease_factor,
+    graduated: p.graduated ?? false,
   }
 }
 
@@ -121,6 +126,7 @@ export async function updateProblem(
   if (updates.next_review !== undefined) row.next_review = updates.next_review
   if (updates.interval !== undefined) row.interval_days = updates.interval
   if (updates.ease_factor !== undefined) row.ease_factor = updates.ease_factor
+  if (updates.graduated !== undefined) row.graduated = updates.graduated
   if (Object.keys(row).length === 0) return
   const { error } = await supabase.from('problems').update(row).eq('id', id)
   if (error) throw error
@@ -135,7 +141,7 @@ export async function insertReview(
   problemId: string,
   userId: string,
   review: Review,
-  schedule: { interval: number; next_review: string; ease_factor: number }
+  schedule: { interval: number; next_review: string; ease_factor: number; graduated: boolean }
 ): Promise<void> {
   const { error } = await supabase.from('reviews').insert({
     problem_id: problemId,
@@ -152,6 +158,37 @@ export async function insertReview(
       interval_days: schedule.interval,
       next_review: schedule.next_review,
       ease_factor: schedule.ease_factor,
+      graduated: schedule.graduated,
+    })
+    .eq('id', problemId)
+  if (updError) throw updError
+}
+
+// Resolve a Comeback Challenge: log the recall as a review (carrying any bonus
+// points) and flip the problem's graduated state + re-entry schedule.
+export async function resolveComeback(
+  problemId: string,
+  userId: string,
+  review: Review,
+  comebackBonus: number,
+  state: { graduated: boolean; interval: number; next_review: string },
+): Promise<void> {
+  const { error } = await supabase.from('reviews').insert({
+    problem_id: problemId,
+    user_id: userId,
+    date: review.date,
+    comfort: review.comfort,
+    time_spent_minutes: review.time_spent_minutes ?? null,
+    notes: review.notes ?? null,
+    comeback_bonus: comebackBonus,
+  })
+  if (error) throw error
+  const { error: updError } = await supabase
+    .from('problems')
+    .update({
+      graduated: state.graduated,
+      interval_days: state.interval,
+      next_review: state.next_review,
     })
     .eq('id', problemId)
   if (updError) throw updError

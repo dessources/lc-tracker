@@ -40,6 +40,10 @@ create table if not exists public.problems (
 
 create index if not exists problems_user_id_idx on public.problems(user_id);
 
+-- A problem that reaches a ~30-day interval graduates out of the active review
+-- queue; it only resurfaces via the daily Comeback Challenge.
+alter table public.problems add column if not exists graduated boolean not null default false;
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
   problem_id uuid not null references public.problems(id) on delete cascade,
@@ -53,6 +57,9 @@ create table if not exists public.reviews (
 
 create index if not exists reviews_problem_id_idx on public.reviews(problem_id);
 create index if not exists reviews_user_id_date_idx on public.reviews(user_id, date);
+
+-- Bonus points for acing a graduated problem in the Comeback Challenge.
+alter table public.reviews add column if not exists comeback_bonus integer not null default 0;
 
 create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),

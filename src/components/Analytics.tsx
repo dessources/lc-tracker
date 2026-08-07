@@ -65,7 +65,7 @@ export function Analytics({ problems }: Props) {
       d.setDate(d.getDate() + i)
       const iso = toISO(d)
       const label = i === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      const count = problems.filter(p => p.next_review === iso).length
+      const count = problems.filter(p => !p.graduated && p.next_review === iso).length
       forecastData.push({ label, count })
     }
 

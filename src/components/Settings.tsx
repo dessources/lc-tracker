@@ -19,6 +19,7 @@ const USERNAME_RE = /^[a-z0-9_-]{3,20}$/
 export function Settings({ problems, isDark, onToggleDark, onImport }: Props) {
   const { session, profile, refreshProfile } = useAuth()
   const [dailyGoal, setDailyGoal] = useState(() => getSettings().dailyGoal)
+  const [dailyReviewBudget, setDailyReviewBudget] = useState(() => getSettings().dailyReviewBudget)
   const [importError, setImportError] = useState('')
   const [importSuccess, setImportSuccess] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -136,6 +137,12 @@ export function Settings({ problems, isDark, onToggleDark, onImport }: Props) {
     saveSettings({ ...settings, dailyGoal: v })
   }
 
+  const handleBudgetChange = (v: number) => {
+    setDailyReviewBudget(v)
+    const settings = getSettings()
+    saveSettings({ ...settings, dailyReviewBudget: v })
+  }
+
   const handleStatusLine = () => {
     switch (handleStatus) {
       case 'invalid':
@@ -236,6 +243,20 @@ export function Settings({ problems, isDark, onToggleDark, onImport }: Props) {
             max={50}
             value={dailyGoal}
             onChange={e => handleGoalChange(Math.max(1, parseInt(e.target.value) || 1))}
+            className="w-16 bg-bg border border-border px-2 py-1.5 text-sm text-primary font-mono text-center focus:outline-none focus:border-accent"
+          />
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="text-sm text-primary">Daily review budget</div>
+            <div className="text-xs text-secondary mt-0.5">Max reviews shown per day (most overdue first)</div>
+          </div>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={dailyReviewBudget}
+            onChange={e => handleBudgetChange(Math.max(1, parseInt(e.target.value) || 1))}
             className="w-16 bg-bg border border-border px-2 py-1.5 text-sm text-primary font-mono text-center focus:outline-none focus:border-accent"
           />
         </div>

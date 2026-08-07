@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Problem, Review } from '../types'
 import * as api from '../utils/api'
-import { calculateNextReview } from '../utils/sm2'
+import { calculateNextReview, graduatesAt, resolveComebackSchedule } from '../utils/sm2'
+import type { ComebackOutcome } from '../utils/sm2'
+import { comebackBonus } from '../utils/comeback'
 import { today } from '../utils/dates'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -72,6 +74,7 @@ export function useProblems() {
       interval: 0,
       ease_factor: 2.5,
       comfort_history: [],
+      graduated: false,
     }
     const { interval, nextReview, easeFactor } = calculateNextReview(stub, data.initialComfort)
     const problem: Problem = {
@@ -107,6 +110,9 @@ export function useProblems() {
 
     const review: Review = { date: today(), comfort, time_spent_minutes, notes }
     const { interval, nextReview, easeFactor } = calculateNextReview(problem, comfort)
+    // A strong recall that pushes the interval past the graduation threshold
+    // retires the problem from the active queue into the graduated pool.
+    const graduated = graduatesAt(interval)
 
     const updated: Problem = {
       ...problem,
@@ -115,6 +121,7 @@ export function useProblems() {
       next_review: nextReview,
       ease_factor: easeFactor,
       comfort_history: [...problem.comfort_history, comfort],
+      graduated,
     }
     mutate(
       problems.map(p => p.id === id ? updated : p),
@@ -122,6 +129,35 @@ export function useProblems() {
         interval,
         next_review: nextReview,
         ease_factor: easeFactor,
+        graduated,
+      })
+    )
+  }, [problems, userId, mutate])
+
+  // Resolve the daily Comeback Challenge for a graduated problem.
+  const resolveComeback = useCallback((id: string, outcome: ComebackOutcome) => {
+    if (!userId) return
+    const problem = problems.find(p => p.id === id)
+    if (!problem) return
+
+    const { comfort, graduated, interval, nextReview } = resolveComebackSchedule(outcome)
+    const bonus = outcome === 'aced' ? comebackBonus(problem) : 0
+    const review: Review = { date: today(), comfort }
+
+    const updated: Problem = {
+      ...problem,
+      reviews: [...problem.reviews, review],
+      interval,
+      next_review: nextReview,
+      comfort_history: [...problem.comfort_history, comfort],
+      graduated,
+    }
+    mutate(
+      problems.map(p => p.id === id ? updated : p),
+      () => api.resolveComeback(id, userId, review, bonus, {
+        graduated,
+        interval,
+        next_review: nextReview,
       })
     )
   }, [problems, userId, mutate])
@@ -132,5 +168,5 @@ export function useProblems() {
     await refetch()
   }, [userId, refetch])
 
-  return { problems, loading, error, addProblem, updateProblem, deleteProblem, logReview, importProblems, refetch }
+  return { problems, loading, error, addProblem, updateProblem, deleteProblem, logReview, resolveComeback, importProblems, refetch }
 }

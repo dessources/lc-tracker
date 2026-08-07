@@ -42,7 +42,7 @@ function AppContent() {
   const { session, profile, loading: authLoading } = useAuth()
   const {
     problems, loading: dataLoading, error,
-    addProblem, updateProblem, deleteProblem, logReview, importProblems,
+    addProblem, updateProblem, deleteProblem, logReview, resolveComeback, importProblems,
   } = useProblems()
   const [isDark, toggleDark] = useDarkMode()
   const [openQuickLog, setOpenQuickLog] = useState(false)
@@ -159,6 +159,7 @@ function AppContent() {
                   problems={problems}
                   onAddProblem={addProblem}
                   onLogReview={logReview}
+                  onResolveComeback={resolveComeback}
                   openQuickLog={openQuickLog}
                   onQuickLogOpened={() => setOpenQuickLog(false)}
                 />

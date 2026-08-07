@@ -60,9 +60,14 @@ export interface Problem {
   interval: number
   ease_factor: number
   comfort_history: number[]
+  // Once true, the problem has proven mastery and leaves the active review
+  // queue; it only resurfaces via the daily Comeback Challenge.
+  graduated: boolean
 }
 
 export interface AppSettings {
   darkMode: boolean
   dailyGoal: number
+  // Max reviews surfaced per day on the dashboard (most-overdue first).
+  dailyReviewBudget: number
 }

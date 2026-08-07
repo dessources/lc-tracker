@@ -1,20 +1,29 @@
 import { useState, useEffect } from 'react'
 import type { Problem } from '../types'
 import { ALL_PATTERNS } from '../types'
+import type { ComebackOutcome } from '../utils/sm2'
 import { DifficultyBadge } from './DifficultyBadge'
 import { PatternTag } from './PatternTag'
 import { ComfortDot, ComfortRating } from './ComfortRating'
 import { ReviewModal } from './ReviewModal'
 import { StatsBar } from './StatsBar'
+import { ComebackChallenge } from './ComebackChallenge'
+import { WhatsNew } from './WhatsNew'
 import { useStats } from '../hooks/useStats'
 import type { NewProblemData } from '../hooks/useProblems'
-import { isDueToday, isOverdue, daysSince, formatDate } from '../utils/dates'
+import { isDueToday, isOverdue, daysSince, today, formatDate } from '../utils/dates'
 import { streakAtRisk } from '../utils/stats'
+import { pickComeback } from '../utils/comeback'
+import {
+  getSettings, isWhatsNewDismissed, dismissWhatsNew,
+  getComebackState, setComebackState,
+} from '../utils/storage'
 
 interface Props {
   problems: Problem[]
   onAddProblem: (data: NewProblemData) => void
   onLogReview: (id: string, comfort: 1|2|3|4|5, time?: number, notes?: string) => void
+  onResolveComeback: (id: string, outcome: ComebackOutcome) => void
   openQuickLog: boolean
   onQuickLogOpened: () => void
 }
@@ -27,12 +36,17 @@ const EMPTY_FORM: NewProblemData = {
   initialComfort: 3,
 }
 
-export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, onQuickLogOpened }: Props) {
+export function Dashboard({ problems, onAddProblem, onLogReview, onResolveComeback, openQuickLog, onQuickLogOpened }: Props) {
   const stats = useStats(problems)
   const [reviewTarget, setReviewTarget] = useState<Problem | null>(null)
   const [form, setForm] = useState<NewProblemData>(EMPTY_FORM)
   const [formExtra, setFormExtra] = useState({ lcNumber: '', url: '', subpattern: '', notes: '' })
   const [submitted, setSubmitted] = useState(false)
+  const [whatsNewOpen, setWhatsNewOpen] = useState(() => !isWhatsNewDismissed())
+  const [comebackId, setComebackId] = useState<string | null>(null)
+  const [comebackHidden, setComebackHidden] = useState(false)
+
+  const budget = getSettings().dailyReviewBudget
 
   useEffect(() => {
     if (openQuickLog) {
@@ -41,8 +55,42 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
     }
   }, [openQuickLog, onQuickLogOpened])
 
+  // Decide today's Comeback Challenge: keep any unresolved pick (persists until
+  // resolved); otherwise draw a fresh one, but at most one per day.
+  useEffect(() => {
+    const c = getComebackState()
+    const t = today()
+    if (c && !c.resolved) {
+      setComebackId(c.problemId)
+      return
+    }
+    if (c && c.resolved && c.pickedDate === t) {
+      setComebackId(null) // already did today's
+      return
+    }
+    const pick = pickComeback(problems)
+    if (pick) {
+      setComebackState({ problemId: pick.id, pickedDate: t, resolved: false })
+      setComebackId(pick.id)
+    } else {
+      setComebackId(null)
+    }
+  }, [problems])
+
+  const comebackProblem = comebackId
+    ? problems.find(p => p.id === comebackId && p.graduated) ?? null
+    : null
+
+  const handleResolveComeback = (outcome: ComebackOutcome) => {
+    if (!comebackProblem) return
+    onResolveComeback(comebackProblem.id, outcome)
+    setComebackState({ problemId: comebackProblem.id, pickedDate: today(), resolved: true })
+    setComebackId(null)
+  }
+
+  // Graduated problems are out of the active queue entirely.
   const dueProblems = problems
-    .filter(p => isDueToday(p.next_review))
+    .filter(p => !p.graduated && isDueToday(p.next_review))
     .sort((a, b) => {
       const aOver = isOverdue(a.next_review)
       const bOver = isOverdue(b.next_review)
@@ -51,8 +99,12 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
       return a.next_review.localeCompare(b.next_review)
     })
 
+  // Cap the daily plate to the budget, most-overdue first.
+  const visibleDue = dueProblems.slice(0, budget)
+  const overflow = dueProblems.length - visibleDue.length
+
   const nextUpcoming = problems
-    .filter(p => !isDueToday(p.next_review))
+    .filter(p => !p.graduated && !isDueToday(p.next_review))
     .sort((a, b) => a.next_review.localeCompare(b.next_review))[0]
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,6 +128,10 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
       <div className="flex flex-col md:flex-row gap-6 md:flex-1 md:min-h-0">
         {/* Left: Review Queue */}
         <div className="md:flex-1 flex flex-col min-w-0 gap-4">
+          {whatsNewOpen && (
+            <WhatsNew onDismiss={() => { dismissWhatsNew(); setWhatsNewOpen(false) }} />
+          )}
+
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-medium text-primary">Today's Queue</h2>
             <span className="text-sm text-secondary font-mono">
@@ -90,6 +146,14 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
             weakestPattern={stats.weakestPattern}
           />
 
+          {comebackProblem && !comebackHidden && (
+            <ComebackChallenge
+              problem={comebackProblem}
+              onResolve={handleResolveComeback}
+              onHide={() => setComebackHidden(true)}
+            />
+          )}
+
           {(() => {
             const risk = streakAtRisk(problems.flatMap(p => p.reviews.map(r => r.date)))
             return risk > 0 ? (
@@ -98,6 +162,12 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
               </div>
             ) : null
           })()}
+
+          {overflow > 0 && (
+            <div className="border border-warning/40 bg-warning/10 text-warning text-xs px-4 py-2.5">
+              ❯ {overflow} more queued beyond today's budget of {budget} — clear these first before adding new problems
+            </div>
+          )}
 
           {dueProblems.length === 0 ? (
             <div className="md:flex-1 flex flex-col items-center justify-center text-center py-12 bg-surface border border-border rounded-lg">
@@ -114,7 +184,7 @@ export function Dashboard({ problems, onAddProblem, onLogReview, openQuickLog, o
             </div>
           ) : (
             <div className="md:flex-1 md:overflow-y-auto space-y-2 md:pr-1">
-              {dueProblems.map(p => {
+              {visibleDue.map(p => {
                 const overdue = isOverdue(p.next_review)
                 const lastComfort = p.comfort_history[p.comfort_history.length - 1]
                 const daysSinceReview = p.reviews.length > 0
