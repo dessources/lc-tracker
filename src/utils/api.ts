@@ -32,6 +32,8 @@ interface ReviewRow {
   time_spent_minutes: number | null
   notes: string | null
   created_at: string
+  // Optional so a fetch tolerates the column being absent until the migration lands.
+  is_comeback?: boolean
 }
 
 function rowToProblem(row: ProblemRow): Problem {
@@ -42,6 +44,7 @@ function rowToProblem(row: ProblemRow): Problem {
       comfort: r.comfort,
       time_spent_minutes: r.time_spent_minutes ?? undefined,
       notes: r.notes ?? undefined,
+      is_comeback: r.is_comeback ?? false,
     }))
   return {
     id: row.id,
@@ -181,6 +184,7 @@ export async function resolveComeback(
     time_spent_minutes: review.time_spent_minutes ?? null,
     notes: review.notes ?? null,
     comeback_bonus: comebackBonus,
+    is_comeback: true,
   })
   if (error) throw error
   const { error: updError } = await supabase

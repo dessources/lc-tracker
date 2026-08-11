@@ -61,6 +61,11 @@ create index if not exists reviews_user_id_date_idx on public.reviews(user_id, d
 -- Bonus points for acing a graduated problem in the Comeback Challenge.
 alter table public.reviews add column if not exists comeback_bonus integer not null default 0;
 
+-- Flags a review as a Comeback Challenge resolution (any outcome). Keeps the
+-- "done today" state consistent across a user's devices and excludes comebacks
+-- from the normal per-difficulty leaderboard points.
+alter table public.reviews add column if not exists is_comeback boolean not null default false;
+
 create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,

@@ -42,6 +42,10 @@ export interface Review {
   comfort: 1 | 2 | 3 | 4 | 5
   time_spent_minutes?: number
   notes?: string
+  // True when this review resolved a Comeback Challenge. Used to keep the
+  // "done today" state consistent across devices and to exclude comebacks
+  // from the normal per-difficulty leaderboard points.
+  is_comeback?: boolean
 }
 
 export interface Problem {

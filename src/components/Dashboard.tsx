@@ -11,13 +11,10 @@ import { ComebackChallenge } from './ComebackChallenge'
 import { WhatsNew } from './WhatsNew'
 import { useStats } from '../hooks/useStats'
 import type { NewProblemData } from '../hooks/useProblems'
-import { isDueToday, isOverdue, daysSince, today, formatDate } from '../utils/dates'
+import { isDueToday, isOverdue, daysSince, formatDate } from '../utils/dates'
 import { streakAtRisk } from '../utils/stats'
-import { pickComeback } from '../utils/comeback'
-import {
-  getSettings, isWhatsNewDismissed, dismissWhatsNew,
-  getComebackState, setComebackState,
-} from '../utils/storage'
+import { todaysComeback } from '../utils/comeback'
+import { getSettings, isWhatsNewDismissed, dismissWhatsNew } from '../utils/storage'
 
 interface Props {
   problems: Problem[]
@@ -43,7 +40,6 @@ export function Dashboard({ problems, onAddProblem, onLogReview, onResolveComeba
   const [formExtra, setFormExtra] = useState({ lcNumber: '', url: '', subpattern: '', notes: '' })
   const [submitted, setSubmitted] = useState(false)
   const [whatsNewOpen, setWhatsNewOpen] = useState(() => !isWhatsNewDismissed())
-  const [comebackId, setComebackId] = useState<string | null>(null)
   const [comebackHidden, setComebackHidden] = useState(false)
 
   const budget = getSettings().dailyReviewBudget
@@ -55,37 +51,14 @@ export function Dashboard({ problems, onAddProblem, onLogReview, onResolveComeba
     }
   }, [openQuickLog, onQuickLogOpened])
 
-  // Decide today's Comeback Challenge: keep any unresolved pick (persists until
-  // resolved); otherwise draw a fresh one, but at most one per day.
-  useEffect(() => {
-    const c = getComebackState()
-    const t = today()
-    if (c && !c.resolved) {
-      setComebackId(c.problemId)
-      return
-    }
-    if (c && c.resolved && c.pickedDate === t) {
-      setComebackId(null) // already did today's
-      return
-    }
-    const pick = pickComeback(problems)
-    if (pick) {
-      setComebackState({ problemId: pick.id, pickedDate: t, resolved: false })
-      setComebackId(pick.id)
-    } else {
-      setComebackId(null)
-    }
-  }, [problems])
-
-  const comebackProblem = comebackId
-    ? problems.find(p => p.id === comebackId && p.graduated) ?? null
-    : null
+  // Today's comeback is derived from server data (the stalest graduated problem,
+  // hidden once one is done today) — so every device agrees and there's no
+  // per-device state to drift out of sync.
+  const comebackProblem = todaysComeback(problems)
 
   const handleResolveComeback = (outcome: ComebackOutcome) => {
     if (!comebackProblem) return
     onResolveComeback(comebackProblem.id, outcome)
-    setComebackState({ problemId: comebackProblem.id, pickedDate: today(), resolved: true })
-    setComebackId(null)
   }
 
   // Graduated problems are out of the active queue entirely.

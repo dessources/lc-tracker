@@ -6,8 +6,6 @@ const PROBLEMS_KEY = 'lc_tracker_problems'
 const SETTINGS_KEY = 'lc_tracker_settings'
 // Bump the version suffix to re-announce when there's a new "What's New".
 const WHATS_NEW_KEY = 'lc_tracker_whatsnew_v1'
-// The single outstanding Comeback Challenge, persisted until resolved.
-const COMEBACK_KEY = 'lc_tracker_comeback'
 
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: true,
@@ -57,30 +55,6 @@ export function dismissWhatsNew(): void {
   localStorage.setItem(WHATS_NEW_KEY, '1')
 }
 
-// ---- Comeback Challenge state ----
-// Only one comeback exists at a time. While unresolved it persists across
-// sessions/days (never redrawn). Once resolved, `resolved` + `pickedDate` gate
-// out a second draw on the same day, so there's at most one per day.
-
-export interface ComebackState {
-  problemId: string
-  pickedDate: string
-  resolved: boolean
-}
-
-export function getComebackState(): ComebackState | null {
-  try {
-    const raw = localStorage.getItem(COMEBACK_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed.problemId === 'string') return parsed as ComebackState
-    }
-  } catch {
-    // ignore
-  }
-  return null
-}
-
-export function setComebackState(c: ComebackState): void {
-  localStorage.setItem(COMEBACK_KEY, JSON.stringify(c))
-}
+// Comeback Challenge state is derived from server data (see utils/comeback.ts),
+// not stored per-device, so all of a user's devices agree on which problem is
+// today's challenge and whether it's already been done.

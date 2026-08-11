@@ -1,5 +1,5 @@
 import type { Problem } from '../types'
-import { daysSince } from './dates'
+import { daysSince, today } from './dates'
 
 // The Comeback Challenge resurfaces one graduated problem per day as a cold
 // recall check — the safety net that keeps graduation from silently becoming
@@ -12,12 +12,6 @@ const DIFFICULTY_POINTS: Record<Problem['difficulty'], number> = {
   Hard: 30,
 }
 
-const DIFFICULTY_WEIGHT: Record<Problem['difficulty'], number> = {
-  Easy: 1,
-  Medium: 2,
-  Hard: 3,
-}
-
 // Days since the problem was last reviewed (its freshness). Older = staler =
 // more valuable to re-check. Falls back to date_added if it somehow has no
 // reviews (shouldn't happen for a graduated problem).
@@ -28,32 +22,39 @@ export function daysSinceLastSeen(problem: Problem): number {
   return Math.max(0, daysSince(last))
 }
 
-// Bonus points for acing a comeback: base points by difficulty scaled up by how
-// long the problem had gone unchecked (capped at 3x). Tunable.
+// Bonus points for acing a comeback: base points by difficulty, nudged up by
+// how long the problem had gone unchecked (capped at 1.5x). A comeback earns
+// this bonus INSTEAD of the normal per-difficulty review points (the leaderboard
+// SQL excludes is_comeback reviews from the base), so it's worth roughly one
+// solve plus a small staleness kicker. Tunable.
 export function comebackBonus(problem: Problem): number {
   const base = DIFFICULTY_POINTS[problem.difficulty]
-  const stalenessMult = Math.min(3, 1 + daysSinceLastSeen(problem) / 30)
+  const stalenessMult = Math.min(1.5, 1 + daysSinceLastSeen(problem) / 30)
   return Math.round(base * stalenessMult)
 }
 
-// Draw weight for the daily pick: staler and harder problems surface first, so
-// nothing in the graduated pool rots indefinitely.
-function drawWeight(problem: Problem): number {
-  return Math.max(1, daysSinceLastSeen(problem)) * DIFFICULTY_WEIGHT[problem.difficulty]
+// Whether a comeback has already been resolved today (on ANY device) — derived
+// from server data, so all devices agree. Resolutions are flagged is_comeback.
+export function comebackDoneToday(problems: Problem[]): boolean {
+  const t = today()
+  return problems.some(p => p.reviews.some(r => r.is_comeback && r.date === t))
 }
 
-// Pick one graduated problem, weighted by staleness x difficulty. Returns null
-// when the graduated pool is empty.
-export function pickComeback(problems: Problem[]): Problem | null {
+// Today's comeback: the single most-overdue graduated problem (longest since
+// last reviewed), chosen deterministically so every device shows the same one
+// with no stored state. An unresolved pick stays the stalest and so persists
+// day to day until it's done; resolving it resets its freshness and the next
+// stalest surfaces. Returns null when nothing is graduated or one is already
+// done today.
+export function todaysComeback(problems: Problem[]): Problem | null {
+  if (comebackDoneToday(problems)) return null
   const pool = problems.filter(p => p.graduated)
   if (pool.length === 0) return null
-
-  const weights = pool.map(drawWeight)
-  const total = weights.reduce((a, b) => a + b, 0)
-  let r = Math.random() * total
-  for (let i = 0; i < pool.length; i++) {
-    r -= weights[i]
-    if (r <= 0) return pool[i]
-  }
-  return pool[pool.length - 1]
+  return pool.reduce((best, p) => {
+    const d = daysSinceLastSeen(p)
+    const bd = daysSinceLastSeen(best)
+    if (d > bd) return p
+    if (d === bd) return p.id < best.id ? p : best // stable tie-break
+    return best
+  })
 }

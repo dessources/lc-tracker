@@ -142,7 +142,7 @@ export function useProblems() {
 
     const { comfort, graduated, interval, nextReview } = resolveComebackSchedule(outcome)
     const bonus = outcome === 'aced' ? comebackBonus(problem) : 0
-    const review: Review = { date: today(), comfort }
+    const review: Review = { date: today(), comfort, is_comeback: true }
 
     const updated: Problem = {
       ...problem,
