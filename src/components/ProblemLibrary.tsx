@@ -5,16 +5,17 @@ import { DifficultyBadge } from './DifficultyBadge'
 import { PatternTag } from './PatternTag'
 import { ComfortDot } from './ComfortRating'
 import { ProblemDetail } from './ProblemDetail'
+import { ProblemLibraryTh } from "./ProblemLibraryTh"
 import { formatDate, formatRelative } from '../utils/dates'
+import { SortKey } from '../types'
 
 interface Props {
   problems: Problem[]
   onUpdate: (id: string, updates: Partial<Omit<Problem, 'id'>>) => void
   onDelete: (id: string) => void
-  onReview: (id: string, comfort: 1|2|3|4|5, time?: number, notes?: string) => void
+  onReview: (id: string, comfort: 1 | 2 | 3 | 4 | 5, time?: number, notes?: string) => void
 }
 
-type SortKey = 'next_review' | 'date_added' | 'comfort' | 'difficulty'
 
 const difficultyOrder = { Easy: 0, Medium: 1, Hard: 2 }
 
@@ -24,8 +25,14 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
   const [filterDifficulty, setFilterDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | ''>('')
   const [filterSource, setFilterSource] = useState<'LeetCode' | 'Codeforces' | 'Other' | ''>('')
   const [filterNeedsWork, setFilterNeedsWork] = useState(false)
-  const [sort, setSort] = useState<SortKey>('next_review')
+  const [sort, setSort] = useState<SortKey>(SortKey.NEXT_REVIEW)
+  const [sortOrder, setSortOrder] = useState<number>(1);
   const [selected, setSelected] = useState<Problem | null>(null)
+
+  const updateSortState = (newSort: SortKey) => {
+    setSortOrder(cur => newSort == sort ? cur * -1 : 1)
+    setSort(newSort)
+  }
 
   const filtered = useMemo(() => {
     let list = [...problems]
@@ -48,19 +55,30 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
     }
 
     list.sort((a, b) => {
-      if (sort === 'next_review') return a.next_review.localeCompare(b.next_review)
-      if (sort === 'date_added') return b.date_added.localeCompare(a.date_added)
-      if (sort === 'difficulty') return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]
-      if (sort === 'comfort') {
-        const ac = a.comfort_history[a.comfort_history.length - 1] ?? 0
-        const bc = b.comfort_history[b.comfort_history.length - 1] ?? 0
-        return ac - bc
+      switch (sort) {
+        case SortKey.NAME:
+          return a.name.localeCompare(b.name) * sortOrder;
+        case SortKey.PATTERN:
+          return a.pattern.localeCompare(b.pattern) * sortOrder;
+        case SortKey.NEXT_REVIEW:
+          return a.next_review.localeCompare(b.next_review) * sortOrder;
+        case SortKey.DATE_ADDED:
+          return b.date_added.localeCompare(a.date_added) * sortOrder;
+        case SortKey.DIFFICULTY:
+          return (difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]) * sortOrder;
+        case SortKey.COMFORT: {
+          const ac = a.comfort_history[a.comfort_history.length - 1] ?? 0;
+          const bc = b.comfort_history[b.comfort_history.length - 1] ?? 0;
+          return (ac - bc) * sortOrder;
+        }
+        default:
+          return 0;
       }
-      return 0
-    })
+    });
+
 
     return list
-  }, [problems, search, filterPattern, filterDifficulty, filterSource, filterNeedsWork, sort])
+  }, [problems, search, filterPattern, filterDifficulty, filterSource, filterNeedsWork, sort, sortOrder])
 
   // Keep selected in sync if problem was updated
   const selectedProblem = selected ? problems.find(p => p.id === selected.id) ?? null : null
@@ -110,11 +128,10 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
         </select>
         <button
           onClick={() => setFilterNeedsWork(f => !f)}
-          className={`px-3 py-1.5 rounded border text-sm transition-colors ${
-            filterNeedsWork
-              ? 'border-danger/50 bg-danger/10 text-danger'
-              : 'border-border text-secondary hover:text-primary'
-          }`}
+          className={`px-3 py-1.5 rounded border text-sm transition-colors ${filterNeedsWork
+            ? 'border-danger/50 bg-danger/10 text-danger'
+            : 'border-border text-secondary hover:text-primary'
+            }`}
         >
           Needs work
         </button>
@@ -123,10 +140,10 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
           onChange={e => setSort(e.target.value as SortKey)}
           className="bg-surface border border-border rounded px-2 py-1.5 text-sm text-primary focus:outline-none focus:border-accent ml-auto"
         >
-          <option value="next_review">Sort: Next review</option>
-          <option value="date_added">Sort: Date added</option>
-          <option value="comfort">Sort: Comfort</option>
-          <option value="difficulty">Sort: Difficulty</option>
+          <option value={SortKey.NEXT_REVIEW}>Sort: Next review</option>
+          <option value={SortKey.DATE_ADDED}>Sort: Date added</option>
+          <option value={SortKey.COMFORT}>Sort: Comfort</option>
+          <option value={SortKey.DIFFICULTY}>Sort: Difficulty</option>
         </select>
       </div>
 
@@ -167,11 +184,31 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 bg-surface border-b border-border">
             <tr>
-              <th className="text-left px-4 py-2.5 text-xs text-secondary font-medium">Problem</th>
-              <th className="text-left px-3 py-2.5 text-xs text-secondary font-medium">Pattern</th>
-              <th className="text-left px-3 py-2.5 text-xs text-secondary font-medium">Difficulty</th>
-              <th className="text-left px-3 py-2.5 text-xs text-secondary font-medium">Comfort</th>
-              <th className="text-left px-3 py-2.5 text-xs text-secondary font-medium">Next Review</th>
+              <ProblemLibraryTh sortKey={SortKey.NAME}
+                curSortKey={sort}
+                sortOrder={sortOrder}
+                onClick={() => updateSortState(SortKey.NAME)}
+              />
+              <ProblemLibraryTh sortKey={SortKey.PATTERN}
+                curSortKey={sort}
+                sortOrder={sortOrder}
+                onClick={() => updateSortState(SortKey.PATTERN)}
+              />
+              <ProblemLibraryTh sortKey={SortKey.DIFFICULTY}
+                curSortKey={sort}
+                sortOrder={sortOrder}
+                onClick={() => updateSortState(SortKey.DIFFICULTY)}
+              />
+              <ProblemLibraryTh sortKey={SortKey.COMFORT}
+                curSortKey={sort}
+                sortOrder={sortOrder}
+                onClick={() => updateSortState(SortKey.COMFORT)}
+              />
+              <ProblemLibraryTh sortKey={SortKey.NEXT_REVIEW}
+                curSortKey={sort}
+                sortOrder={sortOrder}
+                onClick={() => updateSortState(SortKey.NEXT_REVIEW)}
+              />
             </tr>
           </thead>
           <tbody>
@@ -181,9 +218,8 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
                 <tr
                   key={p.id}
                   onClick={() => setSelected(p)}
-                  className={`cursor-pointer border-b border-border hover:bg-surface transition-colors ${
-                    i % 2 === 0 ? 'bg-bg' : 'bg-surface/50'
-                  }`}
+                  className={`cursor-pointer border-b border-border hover:bg-surface transition-colors ${i % 2 === 0 ? 'bg-bg' : 'bg-surface/50'
+                    }`}
                 >
                   <td className="px-4 py-2.5">
                     <div className="font-mono text-primary">{p.name}</div>
