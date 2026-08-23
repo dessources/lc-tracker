@@ -140,10 +140,12 @@ export function ProblemLibrary({ problems, onUpdate, onDelete, onReview }: Props
           onChange={e => setSort(e.target.value as SortKey)}
           className="bg-surface border border-border rounded px-2 py-1.5 text-sm text-primary focus:outline-none focus:border-accent ml-auto"
         >
+          <option value={SortKey.NAME}>Sort: Problem name</option>
           <option value={SortKey.NEXT_REVIEW}>Sort: Next review</option>
           <option value={SortKey.DATE_ADDED}>Sort: Date added</option>
           <option value={SortKey.COMFORT}>Sort: Comfort</option>
           <option value={SortKey.DIFFICULTY}>Sort: Difficulty</option>
+          <option value={SortKey.PATTERN}>Sort: Pattern</option>
         </select>
       </div>
 
