@@ -79,8 +79,8 @@ export interface AppSettings {
 export const SortKey = {
   NAME: "name",
   PATTERN: "pattern",
-  NEXT_REVIEW: "next_review",
-  DATE_ADDED: "date_added",
+  NEXT_REVIEW: "next review",
+  DATE_ADDED: "date added",
   COMFORT: "comfort",
   DIFFICULTY: "difficulty",
 };
